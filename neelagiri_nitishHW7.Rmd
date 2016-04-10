@@ -1,0 +1,96 @@
+---
+title: "STAT 645 HW 7"
+author: "Nitish Neelagiri"
+date: "November 13, 2015"
+output: pdf_document
+---
+
+```{r}
+setwd("~/")
+exerciseData <- read.table("exercise.txt", na.strings = ".", header=FALSE)
+names(exerciseData) <- c("ID","Program","0","2","4","6","8","10","12")
+exDataNARM <- exerciseData[complete.cases(exerciseData),]
+exDataNARM_long_q1 <- reshape(exDataNARM, idvar = "ID", varying = list(3:9),direction = "long")
+names(exDataNARM_long_q1) <- c("ID", "Treatment", "Time", "Strength")
+exDataNARM_long_q1$Time <- factor(c("0","2","4","6","8","10","12"))
+attach(exDataNARM_long_q1)
+fit <- lm(Strength~Time+Treatment, data=exDataNARM_long_q1)
+summary(fit)
+ee_fit <- residuals(fit)
+ee_fit_matrix <- matrix(ee_fit, nrow=23, ncol=7)
+ee_fit_matrix
+cor(ee_fit_matrix)
+heatmap(cor(ee_fit_matrix))
+```
+
+(b)
+```{r}
+exDataNARM_long_q2 <- reshape(exerciseData, idvar = "ID", varying = list(3:9),direction = "long")
+names(exDataNARM_long_q2) <- c("ID", "Treatment", "Time", "Strength")
+attach(exDataNARM_long_q2)
+interaction.plot(Time[Treatment==1], ID[Treatment==1], Strength[Treatment==1], xlab = "Time", ylab = "Strength", trace.label="Subjects", col=c(1:16), main = "Sphagetti plot for different Subjects with TX=1")
+interaction.plot(Time[Treatment==2], ID[Treatment==2], Strength[Treatment==2], xlab = "Time", ylab = "Strength", trace.label="Subjects", col=c(1:16), main = "Sphagetti plot for different Subjects with TX=2")
+```
+
+(c)
+```{r}
+library(gee)
+dta_new <- NULL
+for(i in 1:nrow(exDataNARM_long_q2)) 
+  dta_new <- rbind(dta_new, exDataNARM_long_q2[exDataNARM_long_q2$ID == i, ])
+fit_gee <- gee(Strength ~ Time + Treatment, id = ID, corstr = "AR-M", data=dta_new)
+summary(fit_gee)
+```
+
+2
+(a)
+```{r}
+setwd("~/")
+cholesterolData <- read.table("cholesterol.txt", na.strings = ".", header=FALSE)
+names(cholesterolData) <- c("Treatment","ID","1","2","3","4","5")
+cholesterolData_long <- reshape(cholesterolData, varying = list(3:7),direction = "long")
+names(cholesterolData_long) <- c("Treatment", "ID", "Time", "SerumChol", "id")
+attach(cholesterolData_long)
+cholesterolData_long$SerumChol <- as.numeric(as.character(cholesterolData_long$SerumChol))
+cholesterolData_long$Time <- factor(c("1","2","3","4","5"))
+Treatment[Treatment=="2"] <- 0
+interaction.plot(Time[Treatment==1], id[Treatment==1], SerumChol[Treatment==1], xlab = "Time", ylab = "Serum Cholesterol", trace.label="Subjects", col=c(1:16), main = "Sphagetti plot for different Subjects with TX=1")
+interaction.plot(Time[Treatment==0], id[Treatment==0], SerumChol[Treatment==0], xlab = "Time", ylab = "Serum Cholesterol", trace.label="Subjects", col=c(1:16), main = "Sphagetti plot for different Subjects with TX=0")
+```
+
+(b)
+```{r}
+library(geepack)
+library(splines)
+dta_new <- NULL
+
+for(i in 1:nrow(cholesterolData_long)) 
+  dta_new <- rbind(dta_new, cholesterolData_long[cholesterolData_long$ID == i, ])
+
+fit_geeglm <- geeglm(SerumChol ~ Treatment*bs(Time, degree=3), id=id, corstr="independence", data=cholesterolData_long)
+summary(fit_geeglm)
+```
+
+(c)
+
+```{r}
+sq = seq(1,5,length=1000)
+y_p = cbind(1,0,bs(sq,degree=3)) %*% coef(fit_geeglm)[1:5]
+y_t = cbind(1,1,bs(sq,degree=3),bs(sq,degree=3)) %*% coef(fit_geeglm)[1:8]
+
+plot(c(1, 5), c(225,260), xlab = "time", ylab = "Response", type = "n")
+points(cholesterolData_long$time, cholesterolData_long$response, 
+       ylim=range(c(225,260)), pch = 20, col = "grey")
+lines(sq, y_p, lwd = 2, col = "blue")
+lines(sq, y_t, lwd = 2, col = "green")
+
+```
+
+(d)
+```{r}
+fit_geeglm_tx <- geeglm(SerumChol ~ Treatment*bs(Time, degree=3), id=id, corstr="independence", data=cholesterolData_long)
+fit_geeglm_notx <- geeglm(SerumChol ~ bs(Time, degree=3), id=id, corstr="independence", data=cholesterolData_long)
+anova(fit_geeglm_notx,fit_geeglm_tx)
+```
+
+Since the p-value is 0.92 which is more than the significance level 0f 0.05. we fail to reject the null hypothesis and conclude that there is no treatment effect.
